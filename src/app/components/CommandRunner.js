@@ -11,7 +11,7 @@ export default function CommandRunner() {
   const [error, setError] = useState(null);
 
   // URL de l'API backend (utiliser la même que celle définie dans votre page principale)
-  const API_URL = "http://localhost:8080";
+  const API_URL = "http://localhost:3010";
 
   const handleSubmit = async (e) => {
     e.preventDefault();

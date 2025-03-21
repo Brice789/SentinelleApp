@@ -1,100 +1,97 @@
 'use client';
-import { useState } from "react";
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/app/components/button";
+import { useState, useEffect } from 'react';
 
-export default function ScanResults({ scans }) {
-  const [expandedScan, setExpandedScan] = useState(null);
-
-  if (!scans.length) {
-    return (
-      <div className="mt-6">
-        <p className="text-gray-500">Aucun scan effectué pour le moment.</p>
-      </div>
-    );
-  }
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "Terminé":
-        return "text-green-600";
-      case "En cours...":
-        return "text-blue-600";
-      case "Erreur":
-      case "Timeout":
-        return "text-red-600";
-      default:
-        return "text-gray-600";
+export default function ScanResults() {
+  const [scans, setScans] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // URL de l'API backend
+  const API_URL = "http://localhost:3010";
+ 
+  useEffect(() => {
+    async function fetchScans() {
+      try {
+        // Utilisez l'URL complète de votre backend
+        const response = await fetch(`${API_URL}/results`);
+        
+        if (!response.ok) {
+          throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log("Données reçues:", data);
+        
+        // Vérifiez la structure des données reçues et adaptez le code en conséquence
+        if (data.tasks && Array.isArray(data.tasks)) {
+          setScans(data.tasks);
+        } else {
+          // Si la structure ne correspond pas à ce qui est attendu
+          console.warn("Structure de données inattendue:", data);
+          setScans([]);
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        console.error("Erreur lors de la récupération des scans:", err);
+        setError(`Erreur lors du chargement des scans: ${err.message}`);
+        setLoading(false);
+      }
     }
-  };
-
-  const toggleExpandScan = (scanId) => {
-    if (expandedScan === scanId) {
-      setExpandedScan(null);
-    } else {
-      setExpandedScan(scanId);
-    }
-  };
-
+   
+    fetchScans();
+  }, []);
+ 
+  if (loading) return <div className="p-4">Chargement des résultats...</div>;
+  if (error) return <div className="p-4 text-red-500">{error}</div>;
+ 
   return (
-    <div className="mt-6 space-y-4">
-      <h2 className="text-xl font-semibold">Résultats des scans</h2>
+    <div className="mt-4">
+      <h2 className="text-xl font-semibold mb-4">Résultats des scans</h2>
       
-      {scans.map((scan, index) => (
-        <Card key={scan.id || index} className="w-full">
-          <CardHeader className="pb-2">
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-lg">{scan.url}</CardTitle>
-              <span className={`font-medium ${getStatusColor(scan.status)}`}>
-                {scan.status}
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-gray-500">ID: {scan.taskId || "N/A"}</p>
-                {scan.error && (
-                  <p className="text-sm text-red-500">Erreur: {scan.error}</p>
-                )}
-              </div>
-              
-              {scan.status === "Terminé" && (
-                <Button 
-                  onClick={() => toggleExpandScan(index)}
-                  variant="outline"
-                  size="sm"
-                >
-                  {expandedScan === index ? "Masquer" : "Voir les détails"}
-                </Button>
-              )}
-            </div>
-            
-            {expandedScan === index && scan.results && (
-              <div className="mt-4 border-t pt-4">
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <h3 className="font-medium mb-2">Résultats de scan</h3>
-                    <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto max-h-60">
-                      {JSON.stringify(scan.results, null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Pour déboguer - afficher toujours les données du scan */}
-            <div className="mt-2 text-xs text-gray-500">
-              <details>
-                <summary>Informations de débogage</summary>
-                <pre className="mt-2 bg-gray-100 p-2 rounded overflow-auto max-h-60">
-                  {JSON.stringify(scan, null, 2)}
-                </pre>
-              </details>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+      {scans.length === 0 ? (
+        <div className="text-gray-500">Aucun scan à afficher pour le moment.</div>
+      ) : (
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="border p-2 text-left">Domaine</th>
+              <th className="border p-2 text-left">Date</th>
+              <th className="border p-2 text-left">Statut</th>
+              <th className="border p-2 text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scans.map(scan => (
+              <tr key={scan.id} className="hover:bg-gray-50">
+                <td className="border p-2">{scan.target}</td>
+                <td className="border p-2">{new Date(scan.startTime).toLocaleString()}</td>
+                <td className="border p-2">
+                  <span 
+                    className={`inline-block px-2 py-1 rounded text-sm ${
+                      scan.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                      scan.status === 'error' ? 'bg-red-100 text-red-800' : 
+                      'bg-yellow-100 text-yellow-800'
+                    }`}
+                  >
+                    {scan.status === 'completed' ? 'Terminé' : 
+                     scan.status === 'error' ? 'Erreur' : 
+                     'En cours'}
+                  </span>
+                </td>
+                <td className="border p-2">
+                  <button 
+                    onClick={() => window.location.href = `/scan-details/${scan.id}`}
+                    className="text-blue-500 hover:underline"
+                  >
+                    Détails
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

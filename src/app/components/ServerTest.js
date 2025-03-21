@@ -1,162 +1,83 @@
 'use client';
-import { useState } from 'react';
-import { Button } from './button';
+import { useState, useEffect } from "react";
 
-export default function ServerTest() {
-  const [status, setStatus] = useState('Non testé');
-  const [domain, setDomain] = useState('');
-  const [result, setResult] = useState(null);
-  const [domainId, setDomainId] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [serverInfo, setServerInfo] = useState(null);
+export default function ServerTest({ apiUrl }) {
+  const [serverStatus, setServerStatus] = useState("Vérification...");
+  const [connectionError, setConnectionError] = useState(null);
 
-  // URL du serveur backend
-  const SERVER_URL = "http://localhost:8080";
+  // Vérifier la connexion au serveur au chargement du composant
+  useEffect(() => {
+    checkServerConnection();
+  }, [apiUrl]);
 
-  // Vérifier si le serveur est en ligne
-  const checkServer = async () => {
-    setLoading(true);
-    setStatus('Test en cours...');
-    
+  // Fonction pour vérifier la connexion au serveur
+  const checkServerConnection = async () => {
     try {
-      const response = await fetch(`${SERVER_URL}/`);
+      // Faire une requête au serveur avec un timeout de 5 secondes
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       
-      if (response.ok) {
-        const data = await response.json();
-        setStatus('Connecté');
-        setServerInfo(data);
-      } else {
-        setStatus('Erreur');
-        setServerInfo({ error: `${response.status}: ${response.statusText}` });
-      }
-    } catch (error) {
-      setStatus('Non connecté');
-      setServerInfo({ error: error.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Envoyer un domaine au serveur
-  const submitDomain = async (e) => {
-    e.preventDefault();
-    if (!domain) return;
-    
-    setLoading(true);
-    setResult(null);
-    
-    try {
-      const response = await fetch(`${SERVER_URL}/check-domain`, {
-        method: 'POST',
+      setServerStatus("Vérification...");
+      setConnectionError(null);
+      
+      const response = await fetch(`${apiUrl}/check-domain`, {
+        method: "POST",
+        signal: controller.signal,
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ domain }),
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        setDomainId(data.id);
-        setResult(data);
-      } else {
-        setResult({ error: `${response.status}: ${response.statusText}` });
-      }
-    } catch (error) {
-      setResult({ error: error.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Récupérer le statut d'un domaine
-  const checkDomainStatus = async () => {
-    if (!domainId) return;
-    
-    setLoading(true);
-    
-    try {
-      const response = await fetch(`${SERVER_URL}/domain-status/${domainId}`);
+      clearTimeout(timeoutId);
       
       if (response.ok) {
-        const data = await response.json();
-        setResult(data);
+        setServerStatus("Connecté");
+        setConnectionError(null);
       } else {
-        setResult({ error: `${response.status}: ${response.statusText}` });
+        setServerStatus("Erreur");
+        setConnectionError(`Erreur HTTP: ${response.status}`);
       }
     } catch (error) {
-      setResult({ error: error.message });
-    } finally {
-      setLoading(false);
+      console.error("Erreur de connexion au serveur:", error);
+      setServerStatus("Déconnecté");
+      
+      // Message d'erreur personnalisé selon le type d'erreur
+      if (error.name === 'AbortError') {
+        setConnectionError("Délai d'attente dépassé. Le serveur ne répond pas.");
+      } else if (error.message.includes('Network')) {
+        setConnectionError("Erreur de réseau. Vérifiez que le serveur est démarré.");
+      } else {
+        setConnectionError(error.message);
+      }
     }
   };
 
   return (
-    <div className="mt-6 bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-xl font-semibold mb-4">Test de communication avec le serveur</h2>
-      
-      <div className="flex items-center gap-4 mb-4">
-        <Button 
-          onClick={checkServer} 
-          disabled={loading}
-          className="bg-blue-500 text-white"
-        >
-          Vérifier la connexion
-        </Button>
-        
-        <div className={`px-3 py-1 rounded-full ${
-          status === 'Connecté' ? 'bg-green-100 text-green-800' : 
-          status === 'Non connecté' ? 'bg-red-100 text-red-800' : 
-          'bg-gray-100 text-gray-800'
-        }`}>
-          {status}
+    <div className="mt-4">
+      <div className="flex items-center">
+        <div className="font-medium mr-2">Statut du serveur:</div>
+        <div className="flex items-center">
+          <div
+            className={`w-3 h-3 rounded-full mr-2 ${
+              serverStatus === "Connecté" 
+                ? "bg-green-500" 
+                : serverStatus === "Vérification..." 
+                ? "bg-yellow-500" 
+                : "bg-red-500"
+            }`}
+          ></div>
+          <div>{serverStatus}</div>
         </div>
+        <button
+          onClick={checkServerConnection}
+          className="ml-4 text-sm text-blue-500 hover:underline"
+        >
+          Vérifier
+        </button>
       </div>
       
-      {serverInfo && (
-        <div className="mb-4 p-3 bg-gray-100 rounded">
-          <pre className="text-sm">{JSON.stringify(serverInfo, null, 2)}</pre>
-        </div>
-      )}
-      
-      <form onSubmit={submitDomain} className="mt-6">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            placeholder="example.com"
-            className="border p-2 rounded shadow-sm focus:ring focus:ring-blue-300 flex-grow"
-            disabled={loading}
-          />
-          <Button 
-            type="submit" 
-            disabled={loading || !domain}
-            className="bg-green-600 text-white"
-          >
-            Envoyer domaine
-          </Button>
-        </div>
-      </form>
-      
-      {domainId && (
-        <div className="mt-4">
-          <Button 
-            onClick={checkDomainStatus} 
-            disabled={loading}
-            className="bg-purple-600 text-white"
-          >
-            Vérifier le statut
-          </Button>
-        </div>
-      )}
-      
-      {result && (
-        <div className="mt-4">
-          <h3 className="text-lg font-medium mb-2">Résultat:</h3>
-          <div className="p-3 bg-gray-100 rounded overflow-x-auto">
-            <pre className="text-sm">{JSON.stringify(result, null, 2)}</pre>
-          </div>
-        </div>
+      {connectionError && (
+        <div className="mt-1 text-sm text-red-500">{connectionError}</div>
       )}
     </div>
   );
